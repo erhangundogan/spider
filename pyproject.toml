@@ -14,3 +14,6 @@ license-files = ["LICEN[CS]E*"]
 
 [project.urls]
 Homepage = "https://github.com/erhangundogan/spider"
+
+[tool.ruff]
+lint.fixable = ["ALL"]

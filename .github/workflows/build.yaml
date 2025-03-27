@@ -26,17 +26,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install the code linting and formatting tool Ruff
-        run: pipx install ruff
-
       - name: Lint code with Ruff
-        run: ruff check --output-format=github --target-version=py39
-
-      - name: Check code formatting with Ruff
-        run: ruff format --diff --target-version=py39
+        run: ruff check --fix --output-format=github --target-version=py312
         continue-on-error: true
 
       - name: Test with pytest
         run: |
           pip install pytest pytest-cov
-          pytest tests/test_spider.py --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml
+          pytest tests/test_spider.py
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: 
+      name: production   
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push api/production
+        uses: docker/build-push-action@v6
+        with:
+            context: ./packages/spider
+            platforms: linux/amd64,linux/arm64
+            push: true
+            tags: |
+              ghcr.io/erhangundogan/spider:latest

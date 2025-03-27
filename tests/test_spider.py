@@ -6,8 +6,8 @@ def spider():
     return Spider("https://example.com")
 
 def test_is_internal_link(spider):
-    assert spider.is_internal_link("https://example.com/page") == True
-    assert spider.is_internal_link("https://external.com") == False
+    assert spider.is_internal_link("https://example.com/page") is True
+    assert spider.is_internal_link("https://external.com") is False
 
 def test_base_url(spider):
     assert spider.base_url == "https://example.com"
