@@ -1,4 +1,5 @@
 import re 
+import ssl
 import sys
 import datetime
 import http.cookiejar
@@ -17,6 +18,7 @@ class Spider:
         'skipped': set(),
         'exposed': set()
     }
+    html = ''
     meta = []
     content = []
     cookies = {}
@@ -114,15 +116,19 @@ class Spider:
             self.requested_time = datetime.datetime.now()
 
             try:
-                result = urlopen(current_url, timeout=10.0)
+                # set context to velaite SSL/TLS
+                context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+                # open the url
+                result = urlopen(current_url, timeout=10.0, context=context)
+                # read the content of the url and decode it
+                self.html = result.read().decode('utf-8', errors='ignore')
                 for cookie in cookiejar:
                     self.cookies[cookie.name] = cookie.value
                 for header in result.info():
                     self.headers[header] = result.info()[header]
-                self.content_length = self.headers.get('Content-Length') or len(html_content)
-                html_content = result.read().decode('utf-8', errors='ignore')
-                self.extract_data(html_content)
-                self.save_to_file(html_content)
+                self.content_length = self.headers.get('Content-Length') or len(self.html)
+                self.extract_data(self.html)
+                self.save_to_file(self.html)
                 diff = datetime.datetime.now() - self.requested_time
                 self.process_time = diff.total_seconds()
 
@@ -131,6 +137,8 @@ class Spider:
             except URLError as error:
                 if isinstance(error.reason, timeout):
                     print(f'Timeout Error: Data of {current_url} not retrieved because of error: {error}')
+                else:
+                    print(f'URLError fetching {current_url}: {error}')
             else:
                 print(f'Crawling completed for {current_url}')
   
