@@ -4,10 +4,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Copy the spider.py file into the container
-COPY spider/spider.py /app/spider.py
+COPY spider/spider.py requirements.txt /app/
 
 # Install required dependencies
 RUN pip install -r requirements.txt
 
 # Set the command to run the script
-CMD ["python", "spider.py"]
+ENTRYPOINT ["python", "spider.py"]
