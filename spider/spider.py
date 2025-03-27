@@ -17,24 +17,39 @@ class Spider:
         'skipped': set(),
         'exposed': set()
     }
+    charset = ''
+    title = ''
+    author = ''
+    canonical = ''
     cookies = {}
     headers = {}
+    description = ''
     requested_time = 0
     process_time = 0
     content_length = 0
     base_url = ''
-    parsed_url: () = ()
+    _parsed_url: () = ()
 
     def __init__(self, base_url):
         self.base_url = base_url
-        self.parsed_url = urlparse(base_url)
+        self._parsed_url = urlparse(base_url)
 
     def is_internal_link(self, url):
         unknown_link = urlparse(url)
-        return bool(self.parsed_url.netloc == unknown_link.netloc)
+        return bool(self._parsed_url.netloc == unknown_link.netloc)
 
-    def extract_links(self, html_content):
+    def extract_data(self, html_content):
         soup = BeautifulSoup(html_content, 'html.parser')
+
+        try:
+            self.charset = soup.original_encoding
+            self.title = soup.find('title').string
+            self.description = soup.find('meta', attrs={'name': 'description'})['content']
+            self.author = soup.find('link', attrs={'rel': 'author'}).string
+            self.canonical = soup.find('link', attrs={'rel': 'canonical'}).string
+        except Exception as error:
+            print(f"Error extracting meta data: {error}")
+
         links = soup.find_all('a', href=True)
         print(f"Total links found: {len(links)}")
 
@@ -50,7 +65,7 @@ class Spider:
                 continue
             
             if url.startswith('//'):
-                url = url.replace('//', self.parsed_url.scheme + '://')
+                url = url.replace('//', self._parsed_url.scheme + '://')
                 if self.is_internal_link(url):
                     self.links['internal'].add(url)
                 else:
@@ -98,16 +113,18 @@ class Spider:
             self.requested_time = datetime.datetime.now()
 
             try:
-                result = urlopen(current_url, timeout=10)
+                result = urlopen(current_url, timeout=10.0)
                 self.cookies = cookiejar
                 self.headers = result.info()
                 html_content = result.read().decode('utf-8', errors='ignore')
                 self.content_length = self.headers.get('Content-Length') or len(html_content)
-                self.extract_links(html_content)
+
+                self.extract_data(html_content)
                 print(f'Crawling completed for {current_url}')
 
                 diff = datetime.datetime.now() - self.requested_time
                 self.process_time = diff.total_seconds()
+
             except HTTPError as error:
                 print(f'HTTPError fetching {current_url}: {error}')
             except URLError as error:
@@ -128,12 +145,16 @@ if __name__ == "__main__":
 
     print(f'''
 Crawl results:
-Headers: {spider.headers},
-Cookies: {spider.cookies},
-Content-Length: {spider.content_length},
-Request Time: {spider.requested_time},
+Headers: {spider.headers}
+Cookies: {spider.cookies}
+Content-Length: {spider.content_length}
+Request Time: {spider.requested_time}
 Process time: {spider.process_time}
-        ''')
+Title: {spider.title}
+Description: {spider.description}
+Author: {spider.author}
+Canonical: {spider.canonical}
+    ''')
 
     count = 0
     print('Internal links')
