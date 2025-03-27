@@ -1,12 +1,27 @@
 Spider
 ======
 
-Simple crawler to scrap web pages
+Simple crawler to scrap web pages.
 
-## Run
-
-Run from console with URL address to crawl:
+## Run (Docker)
 
 ```bash
-python spider/spider.py https://www.cnn.com
+docker run -it --rm ghcr.io/erhangundogan/spider:latest https://www.wired.com
 ```
+
+## Run locally
+
+- Clone project
+
+- Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+- Run project with extra argument to scrap address
+
+```bash
+python spider/spider.py https://www.wired.com
+```
+

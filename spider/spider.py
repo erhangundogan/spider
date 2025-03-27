@@ -17,13 +17,10 @@ class Spider:
         'skipped': set(),
         'exposed': set()
     }
-    charset = ''
-    title = ''
-    author = ''
-    canonical = ''
+    meta = []
+    content = []
     cookies = {}
     headers = {}
-    description = ''
     requested_time = 0
     process_time = 0
     content_length = 0
@@ -37,18 +34,22 @@ class Spider:
     def is_internal_link(self, url):
         unknown_link = urlparse(url)
         return bool(self._parsed_url.netloc == unknown_link.netloc)
+    
+    def save_to_file(self, content):
+        first_part = self._parsed_url.netloc.replace('.', '_')
+        second_part = self._parsed_url.path.replace("/", "_")
+        file_name = f'{first_part}{second_part}.html'
+        with open(f'/tmp/{file_name}', 'w') as file:
+            file.write(content)
+            print(f"File saved as: /tmp/{file_name}")
 
     def extract_data(self, html_content):
-        soup = BeautifulSoup(html_content, 'html.parser')
-
         try:
-            self.charset = soup.original_encoding
-            self.title = soup.find('title').string
-            self.description = soup.find('meta', attrs={'name': 'description'})['content']
-            self.author = soup.find('link', attrs={'rel': 'author'}).string
-            self.canonical = soup.find('link', attrs={'rel': 'canonical'}).string
+            soup = BeautifulSoup(html_content, 'html.parser')
+            self.meta = list(map(lambda m: m.attrs, soup.find_all('meta')))
+            self.content = list(filter(str.strip, soup.body.get_text(separator=' ').split('\n')))
         except Exception as error:
-            print(f"Error extracting meta data: {error}")
+            print(f"Error extracting meta/content: {error}")
 
         links = soup.find_all('a', href=True)
         print(f"Total links found: {len(links)}")
@@ -114,14 +115,14 @@ class Spider:
 
             try:
                 result = urlopen(current_url, timeout=10.0)
-                self.cookies = cookiejar
-                self.headers = result.info()
-                html_content = result.read().decode('utf-8', errors='ignore')
+                for cookie in cookiejar:
+                    self.cookies[cookie.name] = cookie.value
+                for header in result.info():
+                    self.headers[header] = result.info()[header]
                 self.content_length = self.headers.get('Content-Length') or len(html_content)
-
+                html_content = result.read().decode('utf-8', errors='ignore')
                 self.extract_data(html_content)
-                print(f'Crawling completed for {current_url}')
-
+                self.save_to_file(html_content)
                 diff = datetime.datetime.now() - self.requested_time
                 self.process_time = diff.total_seconds()
 
@@ -131,51 +132,59 @@ class Spider:
                 if isinstance(error.reason, timeout):
                     print(f'Timeout Error: Data of {current_url} not retrieved because of error: {error}')
             else:
-                print('Access succesful')
-            
-            
+                print(f'Crawling completed for {current_url}')
+  
         except Exception as e:
             print(f"Error fetching {current_url}: {e}")
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    base_url = sys.argv[1] or "https://www.bbc.com"
+    if len(sys.argv) < 2:
+        print('Usage: python spider.py <url>')
+        sys.exit
+
+    base_url = sys.argv[1]
     spider = Spider(base_url)
     spider.crawl()
 
     print(f'''
-Crawl results:
-Headers: {spider.headers}
-Cookies: {spider.cookies}
-Content-Length: {spider.content_length}
-Request Time: {spider.requested_time}
-Process time: {spider.process_time}
-Title: {spider.title}
-Description: {spider.description}
-Author: {spider.author}
-Canonical: {spider.canonical}
+DURATION: {spider.process_time} secs
+---
+HEADERS: {spider.headers}
+---
+COOKIES: {dict(spider.cookies)}
+---
+CONTENT-LENGTH: {spider.content_length}
+---
+META: {spider.meta}
+---
+CONTENT: {spider.content}
+---
     ''')
 
     count = 0
-    print('Internal links')
+    print('INTERNAL LINKS')
     for link in spider.links['internal']:
         print(f'{count}: {link}')
         count += 1
 
+    print('---')
     count = 0
-    print('External links')
+    print('EXTERNAL LINKS')
     for link in spider.links['external']:
         print(f'{count}: {link}')
         count += 1
 
+    print('---')
     count = 0
-    print('Skipped links')
+    print('SKIPPED LINKS')
     for link in spider.links['skipped']:
         print(f'{count}: {link}')
         count += 1
 
-    count = 0
-    print('Exposed links')
-    for link in spider.links['exposed']:
-        print(f'{count}: {link}')
-        count += 1
+    print('---')
+    if len(spider.links['exposed']) > 0:
+        count = 0
+        print('EXPOSED LINKS')
+        for link in spider.links['exposed']:
+            print(f'{count}: {link}')
+            count += 1
