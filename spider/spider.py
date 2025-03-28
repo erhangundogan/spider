@@ -1,30 +1,30 @@
-import re 
+import os
+import re
 import ssl
 import sys
 import datetime
-import http.cookiejar
+from url_set import URL_Set
 from socket import timeout
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import urlopen, build_opener, install_opener, HTTPCookieProcessor
+from urllib.request import urlopen, build_opener, install_opener
 from bs4 import BeautifulSoup
 
 class Spider:
     #<scheme>://<netloc>/<path>;<params>?<query>#<fragment>
     #subdomain_links = set()
     links = {
-        'internal': set(),
-        'external': set(),
-        'skipped': set(),
-        'exposed': set()
+        'internal': URL_Set(),
+        'external': URL_Set(),
+        'skipped': URL_Set(),
+        'exposed': URL_Set()
     }
     html = ''
     meta = []
     content = []
-    cookies = {}
     headers = {}
-    requested_time = 0
-    process_time = 0
+    request_time = 0
+    duration = 0
     content_length = 0
     base_url = ''
     _parsed_url: () = ()
@@ -49,7 +49,11 @@ class Spider:
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             self.meta = list(map(lambda m: m.attrs, soup.find_all('meta')))
-            self.content = list(filter(str.strip, soup.body.get_text(separator=' ').split('\n')))
+            whole_text = filter(str.strip, soup.body.get_text(separator=' ').split('\n'))
+            filtered_text_list = []
+            for w in whole_text:
+                filtered_text_list.append(str.strip(w))
+            self.content = filtered_text_list
         except Exception as error:
             print(f"Error extracting meta/content: {error}")
 
@@ -108,12 +112,10 @@ class Spider:
                 'pragma': 'no-cache',
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
             }
-            cookiejar = http.cookiejar.CookieJar()
-            cookie_handler = HTTPCookieProcessor(cookiejar)
-            opener = build_opener(cookie_handler)
+            opener = build_opener()
             opener.headers = request_headers
             install_opener(opener)
-            self.requested_time = datetime.datetime.now()
+            self.request_time = datetime.datetime.now()
 
             try:
                 # set context to velaite SSL/TLS
@@ -122,15 +124,22 @@ class Spider:
                 result = urlopen(current_url, timeout=10.0, context=context)
                 # read the content of the url and decode it
                 self.html = result.read().decode('utf-8', errors='ignore')
-                for cookie in cookiejar:
-                    self.cookies[cookie.name] = cookie.value
                 for header in result.info():
                     self.headers[header] = result.info()[header]
                 self.content_length = self.headers.get('Content-Length') or len(self.html)
                 self.extract_data(self.html)
                 self.save_to_file(self.html)
-                diff = datetime.datetime.now() - self.requested_time
-                self.process_time = diff.total_seconds()
+                diff = datetime.datetime.now() - self.request_time
+                self.duration = diff.total_seconds()
+
+                return { 
+                    'duration': self.duration, 
+                    'headers': self.headers,
+                    'size': self.content_length,
+                    'meta': self.meta,
+                    'content': self.content,
+                    'links': self.links
+                }
 
             except HTTPError as error:
                 print(f'HTTPError fetching {current_url}: {error}')
@@ -152,47 +161,45 @@ if __name__ == "__main__":
 
     base_url = sys.argv[1]
     spider = Spider(base_url)
-    spider.crawl()
+    result = spider.crawl()
 
     print(f'''
-DURATION: {spider.process_time} secs
+DURATION: {result['duration']} secs
 ---
-HEADERS: {spider.headers}
+HEADERS: {result['headers']}
 ---
-COOKIES: {dict(spider.cookies)}
+CONTENT-LENGTH: {result['size']}
 ---
-CONTENT-LENGTH: {spider.content_length}
+META: {result['meta']}
 ---
-META: {spider.meta}
----
-CONTENT: {spider.content}
+CONTENT: {' '.join(result['content'])}
 ---
     ''')
 
     count = 0
     print('INTERNAL LINKS')
-    for link in spider.links['internal']:
+    for link in result['links']['internal']:
         print(f'{count}: {link}')
         count += 1
 
     print('---')
     count = 0
     print('EXTERNAL LINKS')
-    for link in spider.links['external']:
+    for link in result['links']['external']:
         print(f'{count}: {link}')
         count += 1
 
     print('---')
     count = 0
     print('SKIPPED LINKS')
-    for link in spider.links['skipped']:
+    for link in result['links']['skipped']:
         print(f'{count}: {link}')
         count += 1
 
     print('---')
-    if len(spider.links['exposed']) > 0:
+    if len(result['links']['exposed']) > 0:
         count = 0
         print('EXPOSED LINKS')
-        for link in spider.links['exposed']:
+        for link in result['links']['exposed']:
             print(f'{count}: {link}')
             count += 1
