@@ -10,6 +10,22 @@ from urllib.parse import urlparse
 from urllib.request import urlopen, build_opener, install_opener
 from bs4 import BeautifulSoup
 
+def get_meta_dict(headers):
+    out = {}
+    for header in headers:
+        if len(header) == 1:
+            key = list(header.keys()).pop()
+            value = header[key]
+            out[key] = value
+        else:
+            keys = list(header.keys())
+            keys.remove('content')
+            key_name = keys.pop()
+            key = header[key_name]
+            value = header['content']
+            out[key] = value
+    return out
+
 class Spider:
     #<scheme>://<netloc>/<path>;<params>?<query>#<fragment>
     #subdomain_links = set()
@@ -20,7 +36,7 @@ class Spider:
         'exposed': URL_Set()
     }
     html = ''
-    meta = []
+    meta = {}
     content = []
     headers = {}
     request_time = 0
@@ -48,7 +64,8 @@ class Spider:
     def extract_data(self, html_content):
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
-            self.meta = list(map(lambda m: m.attrs, soup.find_all('meta')))
+            meta_list = list(map(lambda m: m.attrs, soup.find_all('meta')))
+            self.meta = get_meta_dict(meta_list)
             whole_text = filter(str.strip, soup.body.get_text(separator=' ').split('\n'))
             filtered_text_list = []
             for w in whole_text:
@@ -124,11 +141,11 @@ class Spider:
                 result = urlopen(current_url, timeout=10.0, context=context)
                 # read the content of the url and decode it
                 self.html = result.read().decode('utf-8', errors='ignore')
+                self.save_to_file(self.html)
                 for header in result.info():
                     self.headers[header] = result.info()[header]
                 self.content_length = self.headers.get('Content-Length') or len(self.html)
                 self.extract_data(self.html)
-                self.save_to_file(self.html)
                 diff = datetime.datetime.now() - self.request_time
                 self.duration = diff.total_seconds()
 
@@ -162,6 +179,10 @@ if __name__ == "__main__":
     base_url = sys.argv[1]
     spider = Spider(base_url)
     result = spider.crawl()
+
+    if result is None:
+        print('No result found.')
+        sys.exit(1)
 
     print(f'''
 DURATION: {result['duration']} secs
