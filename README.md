@@ -1,30 +1,28 @@
 Spider
 ======
 
-Simple crawler to scrap web pages.
-
-## Run (Docker)
-
-```bash
-docker run -it --rm ghcr.io/erhangundogan/spider:latest
-```
+Crawler with chain requests and save data into Valkey (open-source redis)
 
 ## Run locally
 
-- Clone project
-
-- Install dependencies
+Clone project
 
 ```bash
 pip install -r requirements.txt
+cd spider
+fastapi run main.py
+curl --location 'http://localhost:8000/crawl' \
+     --header 'Content-Type: application/json' \
+     --data '{ "url": "https://www.example.com", "store": true }'
 ```
 
-- Run project with extra argument to scrap address
+## Docker Compose (with save feature)
+
+Clone project
 
 ```bash
-cd spider
-# fastapi dev main.py
-# or
-fastapi run main.py
+docker-compose up --build
+curl --location 'http://localhost:8000/crawl' \
+     --header 'Content-Type: application/json' \
+     --data '{ "url": "https://www.example.com", "store": true }'
 ```
-
