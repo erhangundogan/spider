@@ -1,13 +1,15 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
-# Set the working directory
-WORKDIR /app
+RUN mkdir -p /home/worker/spider
 
-# Copy the spider.py file into the container
-COPY spider/*.py requirements.txt /app/
+WORKDIR /home/worker/spider
+COPY requirements.txt /home/worker/spider/
+COPY spider/*.py /home/worker/spider/
 
-# Install required dependencies
+ENV PIP_ROOT_USER_ACTION=ignore
+
 RUN pip install -r requirements.txt
 
-# Set the command to run the script
-ENTRYPOINT ["python", "spider.py"]
+#CMD exec fastapi dev main.py
+CMD ["fastapi", "run", "main.py"]
+ 

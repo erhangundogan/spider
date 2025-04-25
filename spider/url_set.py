@@ -10,6 +10,9 @@ class URL_Set:
         elif url.endswith('index.html'):
             url = url[:-11]
             self.url_set.add(url)
+        elif url.endswith('index.htm'):
+            url = url[:-10]
+            self.url_set.add(url)
         else:
             self.url_set.add(url)
 
@@ -27,3 +30,6 @@ class URL_Set:
     
     def __len__(self):
         return len(self.url_set)
+    
+    def __repr__(self):
+        return f"URL_Set({self.url_set})"

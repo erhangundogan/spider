@@ -1,6 +1,6 @@
 [project]
 name = "spider"
-version = "0.2.3"
+version = "0.3.0"
 authors = [{ name="Erhan Gundogan", email="erhan.gundogan@gmail.com" }]
 description = "Simple crawler to scrap web pages"
 keywords = ["crawler", "scrapper", "spider", "web"]

@@ -1,14 +1,22 @@
 import os
+from pathlib import Path
 import re
 import ssl
+import subprocess
 import sys
-import datetime
-from url_set import URL_Set
+from datetime import datetime, timezone
+from bs4 import BeautifulSoup
+from dataclasses import dataclass
 from socket import timeout
+from page import Page
+from typing import Any
+from url_set import URL_Set
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import urlopen, build_opener, install_opener
-from bs4 import BeautifulSoup
+
+VALKEY_CHAT_QUEUE_KEY = 'chat_queue'
+VALKEY_CHAT_QUEUE_MESSAGE = 'chat_queue_updated'
 
 def get_meta_dict(headers):
     out = {}
@@ -26,99 +34,102 @@ def get_meta_dict(headers):
             out[key] = value
     return out
 
-class Spider:
+class Spider():
     #<scheme>://<netloc>/<path>;<params>?<query>#<fragment>
-    #subdomain_links = set()
-    links = {
-        'internal': URL_Set(),
-        'external': URL_Set(),
-        'skipped': URL_Set(),
-        'exposed': URL_Set()
-    }
-    html = ''
-    meta = {}
-    content = []
-    headers = {}
-    request_time = 0
-    duration = 0
-    content_length = 0
-    base_url = ''
-    _parsed_url: () = ()
+    parsed_url: () = () # type: ignore
+    should_save: bool = False
+    page = Page()
 
-    def __init__(self, base_url):
-        self.base_url = base_url
-        self._parsed_url = urlparse(base_url)
+    def __init__(self, should_save=False):
+        self.should_save = bool(should_save or self.should_save)
 
     def is_internal_link(self, url):
         unknown_link = urlparse(url)
-        return bool(self._parsed_url.netloc == unknown_link.netloc)
+        return bool(self.parsed_url.netloc == unknown_link.netloc)
     
-    def save_to_file(self, content):
-        first_part = self._parsed_url.netloc.replace('.', '_')
-        second_part = self._parsed_url.path.replace("/", "_")
+    def save_to_file(self, content, path='/tmp'):
+        first_part = self.parsed_url.netloc.replace('.', '_')
+        second_part = self.parsed_url.path.replace("/", "_")
         file_name = f'{first_part}{second_part}.html'
-        with open(f'/tmp/{file_name}', 'w') as file:
+        with open(f'{path}/{file_name}', 'w') as file:
             file.write(content)
-            print(f"File saved as: /tmp/{file_name}")
+            print(f"File saved at: {path}/{file_name}")
+        return file_name
 
     def extract_data(self, html_content):
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             meta_list = list(map(lambda m: m.attrs, soup.find_all('meta')))
-            self.meta = get_meta_dict(meta_list)
+            self.page.meta_tags = get_meta_dict(meta_list)
             whole_text = filter(str.strip, soup.body.get_text(separator=' ').split('\n'))
             filtered_text_list = []
             for w in whole_text:
                 filtered_text_list.append(str.strip(w))
-            self.content = filtered_text_list
+            self.page.text_content = filtered_text_list
         except Exception as error:
-            print(f"Error extracting meta/content: {error}")
+            print(f"[{datetime.now(timezone.utc)}] Error extracting meta/content: {error}")
 
         links = soup.find_all('a', href=True)
-        print(f"Total links found: {len(links)}")
+        print(f"[{datetime.now(timezone.utc)}] Total links found: {len(links)}")
 
         for link in links:
             url = link['href'].lower().strip()
-            # check for user:password@
-            if re.search("://(.*):(.*)@", url):
-                self.links['exposed'].add(url)
+
+            if url == self.page.base_url or url == (self.page.base_url + '/'):
                 continue
 
+            # if it's link with user and password
+            if re.search("://(.*):(.*)@", url):
+                self.page.links_exposed.add(url)
+                continue
+
+            # if it's malformed url or starts with other than http/https
             if not url or url.startswith('#') or url.startswith(('ftp','gopher', 'mailto', 'news', 'telnet', 'wais', 'file', 'prospero')):
-                self.links['skipped'].add(url)
+                self.page.links_skipped.add(url)
                 continue
             
+            # if scheme is omitted
             if url.startswith('//'):
-                url = url.replace('//', self._parsed_url.scheme + '://')
+                url = url.replace('//', self.parsed_url.scheme + '://')
                 if self.is_internal_link(url):
-                    self.links['internal'].add(url)
+                    self.page.links_internal.add(url)
                 else:
-                    self.links['external'].add(url)
+                    self.page.links_external.add(url)
+            # if it starts with http/https
             elif url.startswith('http'):
                 if self.is_internal_link(url):
-                    self.links['internal'].add(url)
+                    self.page.links_internal.add(url)
                 else:
-                    self.links['external'].add(url)
+                    self.page.links_external.add(url)
             else:
+                # when it's an absolute path e.g. /path/to/resource
                 if url.startswith('/'):
-                    if self.base_url.endswith('/'):
-                        url = self.base_url + url[1:]
+                    if self.page.base_url.endswith('/'):
+                        url = self.page.base_url + url[1:]
                     else:
-                        url = self.base_url + url
+                        url = self.page.base_url + url
+                # when it's a relative path e.g. path/to/resource
+                # TODO: totally something else e.g. custom app protocol foo://
                 else:
-                    if self.base_url.endswith('/'):
-                        url = self.base_url + url
+                    if self.page.base_url.endswith('/'):
+                        url = self.page.base_url + url
                     else:
-                        url = self.base_url + '/' + url
+                        url = self.page.base_url + '/' + url
                 
                 if self.is_internal_link(url):
-                    self.links['internal'].add(url)
+                    self.page.links_internal.add(url)
                 else:
-                    self.links['external'].add(url)
+                    self.page.links_external.add(url)
 
-    def crawl(self):
-        current_url = self.base_url
-        print(f"Processing: {current_url}")
+    def crawl(self, base_url=None):
+        if base_url is None:
+            print(f"[{datetime.now(timezone.utc)}] Base URL is not set.")
+            return
+
+        self.page.base_url = base_url
+        # etract url components
+        self.parsed_url = urlparse(base_url)
+        print(f"[{datetime.now(timezone.utc)}] Processing: {base_url}")
 
         try:
             request_headers = {
@@ -129,98 +140,72 @@ class Spider:
                 'pragma': 'no-cache',
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
             }
+            # adjust headers for the request
             opener = build_opener()
             opener.headers = request_headers
             install_opener(opener)
-            self.request_time = datetime.datetime.now()
+            self.page.request_date_time = datetime.now(timezone.utc)
 
             try:
                 # set context to velaite SSL/TLS
                 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-                # open the url
-                result = urlopen(current_url, timeout=10.0, context=context)
-                # read the content of the url and decode it
-                self.html = result.read().decode('utf-8', errors='ignore')
-                self.save_to_file(self.html)
-                for header in result.info():
-                    self.headers[header] = result.info()[header]
-                self.content_length = self.headers.get('Content-Length') or len(self.html)
-                self.extract_data(self.html)
-                diff = datetime.datetime.now() - self.request_time
-                self.duration = diff.total_seconds()
+                result = urlopen(base_url, timeout=10.0, context=context)
+                self.page.html_content = result.read().decode('utf-8', errors='ignore')
 
-                return { 
-                    'duration': self.duration, 
-                    'headers': self.headers,
-                    'size': self.content_length,
-                    'meta': self.meta,
-                    'content': self.content,
-                    'links': self.links
-                }
+                if self.should_save:
+                    # save the content to a file
+                    print(f"[{datetime.now(timezone.utc)}] Saving content to the file.")
+                    self.page.file_name = self.save_to_file(self.page.html_content)
+
+                for header in result.info():
+                    self.page.response_headers[header] = result.info()[header]
+                self.page.content_length = self.page.response_headers.get('Content-Length') or len(self.html)
+                self.extract_data(self.page.html_content)
+                diff = datetime.now(timezone.utc) - self.page.request_date_time
+                self.page.duration = diff.total_seconds()
+                print(f"[{datetime.now(timezone.utc)}] Crawling finished in {self.page.duration} seconds.")
+
+                if self.parsed_url.path == '' or self.parsed_url.path == '/':
+                    self.page.key = f'{{{self.parsed_url.netloc}}}'
+                else:
+                    self.page.key = f'{{{self.parsed_url.netloc}/{self.parsed_url.path}}}'
+
+                return self.page
 
             except HTTPError as error:
-                print(f'HTTPError fetching {current_url}: {error}')
+                print(f"[{datetime.now(timezone.utc)}] HTTPError fetching {base_url}: {error}")
             except URLError as error:
                 if isinstance(error.reason, timeout):
-                    print(f'Timeout Error: Data of {current_url} not retrieved because of error: {error}')
+                    print(f"[{datetime.now(timezone.utc)}] Timeout Error: Data of {base_url} not retrieved because of error: {error}")
                 else:
-                    print(f'URLError fetching {current_url}: {error}')
+                    print(f"[{datetime.now(timezone.utc)}] URLError fetching {base_url}: {error}")
             else:
-                print(f'Crawling completed for {current_url}')
+                print(f"[{datetime.now(timezone.utc)}] Crawling completed for {base_url}")
   
         except Exception as e:
-            print(f"Error fetching {current_url}: {e}")
+            print(f"[{datetime.now(timezone.utc)}] Error fetching {base_url}: {e}")
+
+    def run_playwright(self):      
+        try:
+            os.environ['SPIDER_PAGE_URL'] = self.page.base_url
+            current_path = Path(__file__).resolve().parent.parent
+            script_path = os.path.join(current_path, 'browser')
+            print(f'Running browser script for {self.page.base_url} at {script_path}')
+            os.chdir(script_path)
+            scrap = subprocess.Popen(['yarn', 'start'], stdout=subprocess.PIPE)
+            scrap.wait()
+            file_path = scrap.stdout.read().decode('utf-8').strip()
+            content = self.read_from_file(file_path)
+            if content is None:
+                print(f"Error: No content found in {file_path}")
+                sys.exit(1)
+            else:
+                self.extract_data(content)
+        except Exception as error:
+            print(f"[{datetime.now(timezone.utc)}] Error running browser script: {error}")
+            sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print('Usage: python spider.py <url>')
-        sys.exit
-
-    base_url = sys.argv[1]
-    spider = Spider(base_url)
-    result = spider.crawl()
-
-    if result is None:
-        print('No result found.')
-        sys.exit(1)
-
-    print(f'''
-DURATION: {result['duration']} secs
----
-HEADERS: {result['headers']}
----
-CONTENT-LENGTH: {result['size']}
----
-META: {result['meta']}
----
-CONTENT: {' '.join(result['content'])}
----
-    ''')
-
-    count = 0
-    print('INTERNAL LINKS')
-    for link in result['links']['internal']:
-        print(f'{count}: {link}')
-        count += 1
-
-    print('---')
-    count = 0
-    print('EXTERNAL LINKS')
-    for link in result['links']['external']:
-        print(f'{count}: {link}')
-        count += 1
-
-    print('---')
-    count = 0
-    print('SKIPPED LINKS')
-    for link in result['links']['skipped']:
-        print(f'{count}: {link}')
-        count += 1
-
-    print('---')
-    if len(result['links']['exposed']) > 0:
-        count = 0
-        print('EXPOSED LINKS')
-        for link in result['links']['exposed']:
-            print(f'{count}: {link}')
-            count += 1
+    spider = Spider()
+    page = spider.crawl("https://example.com")
+    print(page)
