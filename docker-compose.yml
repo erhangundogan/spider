@@ -7,9 +7,9 @@ networks:
   spider:
     driver: bridge
 
-# volumes:
-#   spider:
-#     driver: local
+volumes:
+  spider:
+    driver: local
 
 services:
   spider:
@@ -19,78 +19,25 @@ services:
     image: spider
     container_name: spider
     depends_on:
-      valkey-5:
+      valkey-0:
         condition: service_healthy
     networks:
       - spider
     ports:
       - 8000:8000
     volumes:
-      - /Users/erhangundogan/projects/python/spider/spider:/home/worker/spider
+      - type: bind
+        source: ./spider
+        target: /home/worker/spider
 
   valkey-0:
     <<: *valkey-base
     container_name: valkey-0
-    networks:
-      - spider
-    # volumes:
-    #   - valkey-0:/bitnami/valkey/data
-    environment:
-      VALKEY_PASSWORD: bitnami
-      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
-
-  valkey-1:
-    <<: *valkey-base
-    container_name: valkey-1
-    networks:
-      - spider
-    # volumes:
-    #   - valkey-1:/bitnami/valkey/data
-    environment:
-      VALKEY_PASSWORD: bitnami
-      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
-
-  valkey-2:
-    <<: *valkey-base
-    container_name: valkey-2
-    networks:
-      - spider
-    # volumes:
-    #   - valkey-2:/bitnami/valkey/data
-    environment:
-      VALKEY_PASSWORD: bitnami
-      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
-
-  valkey-3:
-    <<: *valkey-base
-    container_name: valkey-3
-    networks:
-      - spider
-    # volumes:
-    #   - valkey-3:/bitnami/valkey/data
-    environment:
-      VALKEY_PASSWORD: bitnami
-      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
-
-  valkey-4:
-    <<: *valkey-base
-    container_name: valkey-4
-    networks:
-      - spider
-    # volumes:
-    #   - valkey-4:/bitnami/valkey/data
-    environment:
-      VALKEY_PASSWORD: bitnami
-      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
-
-  valkey-5:
-    <<: *valkey-base
-    container_name: valkey-5
     hostname: valkey
     networks:
       - spider
     # volumes:
-    #   - valkey-5:/bitnami/valkey/data
+    #   - valkey-0:/bitnami/valkey/data
     ports:
       - 6379:6379
     environment:
@@ -102,7 +49,72 @@ services:
       VALKEY_CLUSTER_CREATOR: yes
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD-SHELL", "valkey-cli ping | grep PONG"]
       interval: 5s
       timeout: 5s
       retries: 20
+
+  valkey-1:
+    <<: *valkey-base
+    container_name: valkey-1
+    networks:
+      - spider
+    ports:
+      - 6380:6380
+    # volumes:
+    #   - valkey-1:/bitnami/valkey/data
+    environment:
+      VALKEY_PASSWORD: bitnami
+      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
+
+  valkey-2:
+    <<: *valkey-base
+    container_name: valkey-2
+    networks:
+      - spider
+    ports:
+      - 6381:6381
+    # volumes:
+    #   - valkey-2:/bitnami/valkey/data
+    environment:
+      VALKEY_PASSWORD: bitnami
+      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
+
+  valkey-3:
+    <<: *valkey-base
+    container_name: valkey-3
+    networks:
+      - spider
+    ports:
+      - 6382:6382
+    # volumes:
+    #   - valkey-3:/bitnami/valkey/data
+    environment:
+      VALKEY_PASSWORD: bitnami
+      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
+
+  valkey-4:
+    <<: *valkey-base
+    container_name: valkey-4
+    networks:
+      - spider
+    ports:
+      - 6383:6383
+    # volumes:
+    #   - valkey-4:/bitnami/valkey/data
+    environment:
+      VALKEY_PASSWORD: bitnami
+      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5
+
+  valkey-5:
+    <<: *valkey-base
+    container_name: valkey-5
+    networks:
+      - spider
+    ports:
+      - 6384:6384
+    # volumes:
+    #   - valkey-5:/bitnami/valkey/data
+    environment:
+      VALKEY_PASSWORD: bitnami
+      VALKEY_NODES: valkey-0 valkey-1 valkey-2 valkey-3 valkey-4 valkey-5

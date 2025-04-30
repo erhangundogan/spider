@@ -36,12 +36,13 @@ def get_meta_dict(headers):
 
 class Spider():
     #<scheme>://<netloc>/<path>;<params>?<query>#<fragment>
-    parsed_url: () = () # type: ignore
-    should_save: bool = False
-    page = Page()
 
-    def __init__(self, should_save=False):
+    def __init__(self, should_save=True):
+        self.page = Page()
         self.should_save = bool(should_save or self.should_save)
+        self.parsed_url = ()
+        self.current_date_time = datetime.now(timezone.utc)
+        self.current_html_content = ''
 
     def is_internal_link(self, url):
         unknown_link = urlparse(url)
@@ -55,6 +56,17 @@ class Spider():
             file.write(content)
             print(f"File saved at: {path}/{file_name}")
         return file_name
+    
+    def filter_word(self, word):
+        lean_word = word.strip().lower()
+        return re.sub(r'[^a-zA-Z]', '', lean_word)
+    
+    def extract_words(self):
+        content = " ".join(self.page.texts)
+        words = content.split(' ')
+        filtered_words = map(self.filter_word, words)
+        qualified_words = filter(lambda w: len(w) > 2, filtered_words)
+        self.page.words = set(qualified_words)
 
     def extract_data(self, html_content):
         try:
@@ -65,7 +77,7 @@ class Spider():
             filtered_text_list = []
             for w in whole_text:
                 filtered_text_list.append(str.strip(w))
-            self.page.text_content = filtered_text_list
+            self.page.texts = filtered_text_list
         except Exception as error:
             print(f"[{datetime.now(timezone.utc)}] Error extracting meta/content: {error}")
 
@@ -76,11 +88,6 @@ class Spider():
             url = link['href'].lower().strip()
 
             if url == self.page.base_url or url == (self.page.base_url + '/'):
-                continue
-
-            # if it's link with user and password
-            if re.search("://(.*):(.*)@", url):
-                self.page.links_exposed.add(url)
                 continue
 
             # if it's malformed url or starts with other than http/https
@@ -102,6 +109,10 @@ class Spider():
                 else:
                     self.page.links_external.add(url)
             else:
+                if url.find('://') >= 0:
+                    self.page.links_skipped.add(url)
+                    continue
+
                 # when it's an absolute path e.g. /path/to/resource
                 if url.startswith('/'):
                     if self.page.base_url.endswith('/'):
@@ -127,6 +138,7 @@ class Spider():
             return
 
         self.page.base_url = base_url
+        self.page.utc_date_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         # etract url components
         self.parsed_url = urlparse(base_url)
         print(f"[{datetime.now(timezone.utc)}] Processing: {base_url}")
@@ -144,31 +156,28 @@ class Spider():
             opener = build_opener()
             opener.headers = request_headers
             install_opener(opener)
-            self.page.request_date_time = datetime.now(timezone.utc)
+            self.current_date_time = datetime.now(timezone.utc)
 
             try:
-                # set context to velaite SSL/TLS
+                # set context to validate SSL/TLS
                 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
                 result = urlopen(base_url, timeout=10.0, context=context)
-                self.page.html_content = result.read().decode('utf-8', errors='ignore')
+                self.current_html_content = result.read().decode('utf-8', errors='ignore')
 
                 if self.should_save:
                     # save the content to a file
                     print(f"[{datetime.now(timezone.utc)}] Saving content to the file.")
-                    self.page.file_name = self.save_to_file(self.page.html_content)
+                    self.page.file_name = self.save_to_file(self.current_html_content)
 
                 for header in result.info():
                     self.page.response_headers[header] = result.info()[header]
                 self.page.content_length = self.page.response_headers.get('Content-Length') or len(self.html)
-                self.extract_data(self.page.html_content)
-                diff = datetime.now(timezone.utc) - self.page.request_date_time
+                self.extract_data(self.current_html_content)
+                self.extract_words()
+                diff = datetime.now(timezone.utc) - self.current_date_time
                 self.page.duration = diff.total_seconds()
                 print(f"[{datetime.now(timezone.utc)}] Crawling finished in {self.page.duration} seconds.")
-
-                if self.parsed_url.path == '' or self.parsed_url.path == '/':
-                    self.page.key = f'{{{self.parsed_url.netloc}}}'
-                else:
-                    self.page.key = f'{{{self.parsed_url.netloc}/{self.parsed_url.path}}}'
+                self.page.key = f'{{{self.parsed_url.netloc}}}:{self.parsed_url.path or "/"}'
 
                 return self.page
 

@@ -3,7 +3,7 @@ import os
 import signal
 import sys
 import time
-from valkey.cluster import ValkeyCluster
+from valkey.cluster import ValkeyCluster, ClusterNode
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Optional
@@ -21,15 +21,25 @@ class ValkeyConnection:
         """Initialize signal handlers and Valkey connection after instance creation."""
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
-        self.connect()
 
     def connect(self, max_retries: int = 3, retry_delay: int = 5) -> bool:
         retry_count = 0
         while retry_count < max_retries and self.running:
             try:
                 print(f"[{datetime.now(timezone.utc)}] Attempting to connect to Valkey (attempt {retry_count + 1}/{max_retries})...")
-
-                self.valkey_client = ValkeyCluster(host='valkey', port=6379, password='bitnami', protocol=3)
+                self.valkey_client = ValkeyCluster(
+                    host='valkey',
+                    port=6379,
+                    password='bitnami',
+                    protocol=3,
+                    ClusterNodes=[
+                        ClusterNode(host='valkey-0', port=6379),
+                        ClusterNode(host='valkey-1', port=6380),
+                        ClusterNode(host='valkey-2', port=6381),
+                        ClusterNode(host='valkey-3', port=6382),
+                        ClusterNode(host='valkey-4', port=6383),
+                        ClusterNode(host='valkey-5', port=6384),
+                    ])
                 self.valkey_client.ping()
                 self.pubsub = self.valkey_client.pubsub(ignore_subscribe_messages=True)
                 print(f"[{datetime.now(timezone.utc)}] Successfully connected to Valkey")

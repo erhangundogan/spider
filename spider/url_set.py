@@ -1,5 +1,6 @@
 class URL_Set:
     def __init__(self):
+        # generate set of urls
         self.url_set = set()
 
     def add(self, url):
@@ -33,3 +34,7 @@ class URL_Set:
     
     def __repr__(self):
         return f"URL_Set({self.url_set})"
+    
+    def __del__(self):
+        # clear the set when the object is deleted
+        self.url_set.clear()

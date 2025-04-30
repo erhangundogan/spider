@@ -13,7 +13,7 @@ cd spider
 fastapi run main.py
 curl --location 'http://localhost:8000/crawl' \
      --header 'Content-Type: application/json' \
-     --data '{ "url": "https://www.example.com", "store": true }'
+     --data '{ "url": "https://www.example.com", "store": false }'
 ```
 
 ## Docker Compose (with save feature)

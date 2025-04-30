@@ -3,21 +3,58 @@ from abc import abstractmethod
 from page import Page
 from datetime import datetime, timezone
 from connection import ValkeyConnection
+from enum import Enum
 
-class ValkeyStorage(ValkeyConnection):
-    client: valkey.Valkey
+class ValkeyType(Enum):
+    HASH = 1
+    LIST = 2
+    SET = 3
+    ZSET = 4
+    STRING = 5
 
-    def __init__(self, connection: ValkeyConnection):
-        if connection.valkey_client is None:
-            print(f"[{datetime.now(timezone.utc)}] Valkey client is not initialized.")
-            raise Exception("Valkey client is not initialized.")
-        else:
-          self.client = connection.valkey_client
+class ValkeyStorage:
+    fields: dict = {
+        'id': ValkeyType.STRING,
+        'key': ValkeyType.STRING,
+        'base_url': ValkeyType.STRING,
+        'file_name': ValkeyType.STRING,
+        'utc_date_time': ValkeyType.STRING,
+        'meta_tags': ValkeyType.HASH,
+        'texts': ValkeyType.LIST,
+        'words': ValkeyType.SET,
+        'response_headers': ValkeyType.HASH,
+        'duration': ValkeyType.STRING,
+        'content_length': ValkeyType.STRING,
+        'links_internal': ValkeyType.SET,
+        'links_external': ValkeyType.SET,
+        'links_skipped': ValkeyType.SET
+    }
 
-    @abstractmethod
-    def save(self, page: Page):
-        print(f"[{datetime.now(timezone.utc)}] Saving page with key: {page.key}")
-        pass
+    def save(self, client, page: Page):
+        if client is None:
+            raise ValueError("Client is not connected to Valkey")
+        
+        for key, value in self.fields.items():
+            storage_key = f"{page.key}:{key}"
+            data = getattr(page, key)
+            if data is None:
+                continue
+            match value:
+                case ValkeyType.STRING:
+                    client.set(storage_key, data)
+                case ValkeyType.HASH:
+                    client.hset(storage_key, mapping=data)
+                case ValkeyType.LIST:
+                    if len(data) > 0:
+                        client.rpush(storage_key, *data)
+                case ValkeyType.SET:
+                    if len(data) > 0:
+                        client.sadd(storage_key, *data)
+                case ValkeyType.ZSET:
+                    if len(data) > 0:
+                        client.zadd(storage_key, *data)
+                
+        print(f"[{datetime.now(timezone.utc)}] Page saved with the key: {page.key}")
 
     @abstractmethod
     def get(self, id: str) -> Page:
