@@ -21,7 +21,6 @@ class ValkeyStorage:
         'utc_date_time': ValkeyType.STRING,
         'meta_tags': ValkeyType.HASH,
         'texts': ValkeyType.LIST,
-        'words': ValkeyType.SET,
         'response_headers': ValkeyType.HASH,
         'duration': ValkeyType.STRING,
         'content_length': ValkeyType.STRING,

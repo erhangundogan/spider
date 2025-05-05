@@ -1,8 +1,8 @@
 FROM python:3.12-alpine
 
 RUN mkdir -p /home/worker/spider
-
 WORKDIR /home/worker/spider
+
 COPY requirements.txt /home/worker/spider/
 COPY spider/*.py /home/worker/spider/
 

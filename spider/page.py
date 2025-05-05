@@ -1,7 +1,10 @@
+from sqlmodel import Field, SQLModel, create_engine
 from url_set import URL_Set
 from uuid import uuid4
 
 class Page():
+    id: str | None = Field(default=uuid4().hex, primary_key=True)
+
     def __init__(self):
         self.id: str = uuid4().hex
         self.key: str = ''
@@ -10,7 +13,6 @@ class Page():
         self.utc_date_time: str = ''
         self.meta_tags: dict = {}
         self.texts: list = []
-        self.words: set = set()
         self.response_headers: dict = {}
         self.duration: float = 0.0
         self.content_length: int = 0
@@ -55,8 +57,6 @@ duration: {self.duration} secs
 content_length: {self.content_length}
 
 meta_tags: {self.meta_tags}
-
-words: {self.words}
 
 texts: {self.texts}
 

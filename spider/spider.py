@@ -60,13 +60,6 @@ class Spider():
     def filter_word(self, word):
         lean_word = word.strip().lower()
         return re.sub(r'[^a-zA-Z]', '', lean_word)
-    
-    def extract_words(self):
-        content = " ".join(self.page.texts)
-        words = content.split(' ')
-        filtered_words = map(self.filter_word, words)
-        qualified_words = filter(lambda w: len(w) > 2, filtered_words)
-        self.page.words = set(qualified_words)
 
     def extract_data(self, html_content):
         try:
@@ -132,9 +125,13 @@ class Spider():
                 else:
                     self.page.links_external.add(url)
 
-    def crawl(self, base_url=None):
+    def crawl(self, base_url=None, playwright=False):
         if base_url is None:
             print(f"[{datetime.now(timezone.utc)}] Base URL is not set.")
+            return
+        
+        if playwright:
+            self.run_playwright(base_url)
             return
 
         self.page.base_url = base_url
@@ -173,7 +170,6 @@ class Spider():
                     self.page.response_headers[header] = result.info()[header]
                 self.page.content_length = self.page.response_headers.get('Content-Length') or len(self.html)
                 self.extract_data(self.current_html_content)
-                self.extract_words()
                 diff = datetime.now(timezone.utc) - self.current_date_time
                 self.page.duration = diff.total_seconds()
                 print(f"[{datetime.now(timezone.utc)}] Crawling finished in {self.page.duration} seconds.")
@@ -194,9 +190,9 @@ class Spider():
         except Exception as e:
             print(f"[{datetime.now(timezone.utc)}] Error fetching {base_url}: {e}")
 
-    def run_playwright(self):      
+    def run_playwright(self, base_url):      
         try:
-            os.environ['SPIDER_PAGE_URL'] = self.page.base_url
+            os.environ['SPIDER_PAGE_URL'] = base_url
             current_path = Path(__file__).resolve().parent.parent
             script_path = os.path.join(current_path, 'browser')
             print(f'Running browser script for {self.page.base_url} at {script_path}')
@@ -209,6 +205,7 @@ class Spider():
                 print(f"Error: No content found in {file_path}")
                 sys.exit(1)
             else:
+                self.current_html_content = content
                 self.extract_data(content)
         except Exception as error:
             print(f"[{datetime.now(timezone.utc)}] Error running browser script: {error}")
