@@ -1,6 +1,6 @@
-from sqlmodel import Field, SQLModel, create_engine
-from url_set import URL_Set
+from sqlmodel import Field
 from uuid import uuid4
+from .url_set import URL_Set
 
 class Page():
     id: str | None = Field(default=uuid4().hex, primary_key=True)

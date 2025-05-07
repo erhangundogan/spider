@@ -5,7 +5,7 @@ import sys
 import time
 from valkey.cluster import ValkeyCluster, ClusterNode
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import Optional
 from enum import Enum
 

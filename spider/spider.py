@@ -1,19 +1,17 @@
-import os
-from pathlib import Path
 import re
 import ssl
-import subprocess
-import sys
+import asyncio
+from pathlib import Path
+from typing import List
+from crawl4ai import AsyncWebCrawler, CrawlResult
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
-from dataclasses import dataclass
 from socket import timeout
-from page import Page
-from typing import Any
-from url_set import URL_Set
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import urlopen, build_opener, install_opener
+from .page import Page
+from .url_set import URL_Set
 
 VALKEY_CHAT_QUEUE_KEY = 'chat_queue'
 VALKEY_CHAT_QUEUE_MESSAGE = 'chat_queue_updated'
@@ -124,16 +122,25 @@ class Spider():
                     self.page.links_internal.add(url)
                 else:
                     self.page.links_external.add(url)
+                    
+    async def run_crawl4ai(self, base_url=None):
+        self.page.base_url = base_url
+        self.page.utc_date_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        self.parsed_url = urlparse(base_url)
+        self.current_date_time = datetime.now(timezone.utc)
+        print(f"[{datetime.now(timezone.utc)}] Processing: {base_url} with crawl4ai")
 
-    def crawl(self, base_url=None, playwright=False):
-        if base_url is None:
-            print(f"[{datetime.now(timezone.utc)}] Base URL is not set.")
-            return
-        
-        if playwright:
-            self.run_playwright(base_url)
-            return
+        async with AsyncWebCrawler() as crawler:
+            results: List[CrawlResult] = await crawler.arun(url=base_url)
+            
+            for i, result in enumerate(results):
+                if result.success:
+                    print(result)
+                    return result
+                else:
+                    print(f"Error: {result.error}")
 
+    async def run_urlparse(self, base_url=None):
         self.page.base_url = base_url
         self.page.utc_date_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         # etract url components
@@ -190,26 +197,17 @@ class Spider():
         except Exception as e:
             print(f"[{datetime.now(timezone.utc)}] Error fetching {base_url}: {e}")
 
-    def run_playwright(self, base_url):      
-        try:
-            os.environ['SPIDER_PAGE_URL'] = base_url
-            current_path = Path(__file__).resolve().parent.parent
-            script_path = os.path.join(current_path, 'browser')
-            print(f'Running browser script for {self.page.base_url} at {script_path}')
-            os.chdir(script_path)
-            scrap = subprocess.Popen(['yarn', 'start'], stdout=subprocess.PIPE)
-            scrap.wait()
-            file_path = scrap.stdout.read().decode('utf-8').strip()
-            content = self.read_from_file(file_path)
-            if content is None:
-                print(f"Error: No content found in {file_path}")
-                sys.exit(1)
-            else:
-                self.current_html_content = content
-                self.extract_data(content)
-        except Exception as error:
-            print(f"[{datetime.now(timezone.utc)}] Error running browser script: {error}")
-            sys.exit(1)
+    async def crawl(self, base_url=None, use_crawl4ai=True):
+        if base_url is None:
+            print(f"[{datetime.now(timezone.utc)}] Base URL is not set.")
+            return
+        
+        if use_crawl4ai:
+            crawl_result = await self.run_crawl4ai(base_url)
+            return crawl_result
+        else:
+            page = await self.run_urlparse(base_url)
+            return page
 
 if __name__ == "__main__":
     spider = Spider()

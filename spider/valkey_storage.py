@@ -1,9 +1,9 @@
 import valkey
 from abc import abstractmethod
-from page import Page
 from datetime import datetime, timezone
-from connection import ValkeyConnection
 from enum import Enum
+from .page import Page
+from .connection import ValkeyConnection
 
 class ValkeyType(Enum):
     HASH = 1

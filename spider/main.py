@@ -1,16 +1,14 @@
 import asyncio
-from typing import List
-from crawl4ai import AsyncWebCrawler, CrawlResult
 from time import sleep
-from typing import Union, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException
 from datetime import datetime, timezone
-from page import Page
-from connection import ValkeyConnection
-from spider.spider import Spider
-from spider.valkey_storage import ValkeyStorage
 from enum import Enum
+from .page import Page
+from .connection import ValkeyConnection
+from .spider import Spider
+from .valkey_storage import ValkeyStorage
 
 app = FastAPI()
 
@@ -33,41 +31,41 @@ async def crawl4ai(request: CrawlRequest):
     if request.url is None:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    async with AsyncWebCrawler() as crawler:
-        # Start crawling from the given URL
-        results: List[CrawlResult] = await crawler.arun(url=request.url)
-        
-        for i, result in enumerate(results):
-            # Print the URL and the text content of the page
-            print(f"Result {i+1}:")
-            print(f"Success: {result.success}")
-            if result.success:
-                print(f"Markdown length: {len(result.markdown.raw_markdown)} chars")
-                print(f"Firts 100 chars: {result.markdown.raw_markdown[:100]}...")
-            else:
-                print(f"Error: {result.error}")
-
+    iteration = request.iteration
+    while iteration > 0:
+        spider = Spider()
+        page: CrawlRequest = await spider.crawl(base_url=request.url, use_crawl4ai=True)
+        if page is not None:
+            print(page)
+            iteration -= 1
+            sleep(5)
+        else:
+            print(f"[{datetime.now(timezone.utc)}] Failed to crawl")    
+            raise HTTPException(status_code=500, detail="Failed to crawl")
 
 @app.post("/crawl")
 async def crawl(request: CrawlRequest):
     if request.url is None:
         raise HTTPException(status_code=400, detail="URL is required")
     
+    connection = ValkeyConnection() if request.store is not None and request.store else None
+
     iteration = request.iteration
     while iteration > 0:
         spider = Spider()
-        page = spider.crawl(request.url)
+        page: Page = await spider.crawl(base_url=request.url, use_crawl4ai=False)
         if page is not None:
             print(f"[{datetime.now(timezone.utc)}] Successfully crawled the page")
             print(page)
-            if request.store:
-                connection = ValkeyConnection()
+            iteration -= 1
+
+            if request.store is not None and request.store:
                 if connection.connect():
                     storage = ValkeyStorage()
                     storage.save(client=connection.valkey_client, page=page)
                     print(f"[{datetime.now(timezone.utc)}] Successfully stored page {page.key}")
                     del page, storage, spider
-                    iteration -= 1
+                    connection.valkey_client.close()
                     sleep(5)
                 else:
                     print(f"[{datetime.now(timezone.utc)}] Failed to connect to the database")    
@@ -75,10 +73,11 @@ async def crawl(request: CrawlRequest):
         else:
             print(f"[{datetime.now(timezone.utc)}] Failed to crawl")    
             raise HTTPException(status_code=500, detail="Failed to crawl")
-        
-    connection.valkey_client.close()
+
+    if connection is not None:
+        connection.valkey_client.close()
 
     return {
         "result": "success",
-        "message": f"Successfully crawled {request.iteration} times."
+        "message": "Successfully crawled"
     }

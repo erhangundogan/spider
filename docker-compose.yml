@@ -25,10 +25,10 @@ services:
       - spider
     ports:
       - 8000:8000
-    volumes:
-      - type: bind
-        source: ./spider
-        target: /home/worker/spider
+    # volumes:
+    #   - type: bind
+    #     source: ./spider
+    #     target: /app
 
   postgresql:
     image: 'bitnami/postgresql:latest'

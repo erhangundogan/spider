@@ -1,15 +1,10 @@
-FROM python:3.12-alpine
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS uv
 
-RUN mkdir -p /home/worker/spider
-WORKDIR /home/worker/spider
+COPY requirements.txt pyproject.toml .python-version pytest.ini uv.lock /app/
+COPY spider/*.py /app/
+COPY tests /app/tests
 
-COPY requirements.txt /home/worker/spider/
-COPY spider/*.py /home/worker/spider/
+WORKDIR /app
 
-ENV PIP_ROOT_USER_ACTION=ignore
-
-RUN pip install -r requirements.txt
-
-#CMD exec fastapi dev main.py
-CMD ["fastapi", "run", "main.py"]
- 
+RUN uv sync --frozen --no-cache
+CMD ["/app/.venv/bin/fastapi", "run", "main.py", "--port", "8000", "--host", "0.0.0.0"]
