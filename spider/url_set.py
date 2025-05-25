@@ -1,7 +1,25 @@
+import json
+
+class URL_Set_Encoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, URL_Set):
+            return list(obj)
+        return super().default(obj)
+
 class URL_Set:
-    def __init__(self):
+    def __init__(self, lst: list | set | None = None):
         # generate set of urls
         self.url_set = set()
+        if lst is None:
+            return
+
+        if isinstance(lst, list):
+            for url in lst:
+                self.add(url)
+        elif isinstance(lst, set):
+            self.url_set = lst
+        else:
+            raise TypeError("Expected a list or set of URLs")
 
     def add(self, url):
         # params and query strings will generate new urls

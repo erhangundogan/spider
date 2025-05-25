@@ -3,7 +3,8 @@ import ssl
 import asyncio
 from pathlib import Path
 from typing import List
-from crawl4ai import AsyncWebCrawler, CrawlResult
+from crawl4ai import AsyncWebCrawler, CrawlResult, BrowserConfig, CrawlerRunConfig, CacheMode
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from socket import timeout
@@ -124,21 +125,60 @@ class Spider():
                     self.page.links_external.add(url)
                     
     async def run_crawl4ai(self, base_url=None):
-        self.page.base_url = base_url
+        if base_url is None:
+            print(f"[{datetime.now(timezone.utc)}] Base URL is not set.")
+            return
+        
         self.page.utc_date_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        self.parsed_url = urlparse(base_url)
         self.current_date_time = datetime.now(timezone.utc)
         print(f"[{datetime.now(timezone.utc)}] Processing: {base_url} with crawl4ai")
 
-        async with AsyncWebCrawler() as crawler:
-            results: List[CrawlResult] = await crawler.arun(url=base_url)
+        # Configure the browser
+        browser_config = BrowserConfig(
+            headless=True,  # Set to False so you can see what's happening
+            verbose=False,
+            user_agent_mode="random",
+            use_managed_browser=True, # Enables persistent browser sessions
+            browser_type="chromium"
+        )
+
+        cleaned_md_generator = DefaultMarkdownGenerator(
+            content_source="cleaned_html",  # This is the default
+            options={"ignore_links": True}
+        )
+
+        # Set crawl configuration
+        crawl_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            markdown_generator=cleaned_md_generator
+        )
+
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            result = await crawler.arun(url=base_url, config=crawl_config)
             
-            for i, result in enumerate(results):
-                if result.success:
-                    print(result)
-                    return result
-                else:
-                    print(f"Error: {result.error}")
+            if result.success:
+                self.parsed_url = urlparse(result.url)
+                self.page.base_url = result.url
+                self.page.key = f'{{{self.parsed_url.netloc}}}:{self.parsed_url.path or "/"}'
+                self.page.meta_tags = result.metadata
+                self.page.response_headers = result.response_headers
+                self.page.links_internal = URL_Set(list(map(lambda link: link['href'], result.links['internal'])))
+                self.page.links_external = URL_Set(list(map(lambda link: link['href'], result.links['external'])))
+                self.page.markdown = result.markdown
+                self.page.content_length = result.response_headers.get('Content-Length') or len(result.html)
+                
+                if self.should_save:
+                    # save the content to a file
+                    print(f"[{datetime.now(timezone.utc)}] Saving content to the file.")
+                    self.page.file_name = self.save_to_file(result.html)
+
+                diff = datetime.now(timezone.utc) - self.current_date_time
+                self.page.duration = diff.total_seconds()
+                print(f"[{datetime.now(timezone.utc)}] Crawl4AI finished in {self.page.duration} seconds.")
+
+                return self.page
+            else:
+                print(f"Error: {result.error}")
 
     async def run_urlparse(self, base_url=None):
         self.page.base_url = base_url

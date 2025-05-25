@@ -3,7 +3,6 @@ from abc import abstractmethod
 from datetime import datetime, timezone
 from enum import Enum
 from .page import Page
-from .connection import ValkeyConnection
 
 class ValkeyType(Enum):
     HASH = 1
@@ -19,6 +18,7 @@ class ValkeyStorage:
         'base_url': ValkeyType.STRING,
         'file_name': ValkeyType.STRING,
         'utc_date_time': ValkeyType.STRING,
+        'markdown': ValkeyType.STRING,
         'meta_tags': ValkeyType.HASH,
         'texts': ValkeyType.LIST,
         'response_headers': ValkeyType.HASH,

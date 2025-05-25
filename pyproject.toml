@@ -1,6 +1,6 @@
 [project]
 name = "spider"
-version = "0.4.0"
+version = "0.5.0"
 authors = [{ name="Erhan Gundogan", email="erhan.gundogan@gmail.com" }]
 description = "Simple crawler to scrap web pages"
 keywords = ["crawler", "crawl4ai", "scrapper", "spider", "web"]
@@ -14,7 +14,7 @@ license = "MIT"
 license-files = ["LICEN[CS]E*"]
 dependencies = [
     "beautifulsoup4==4.13.3",
-    "crawl4ai==0.6.2",
+    "crawl4ai==0.6.3",
     "fastapi[standard]==0.115.12",
     "pydantic==2.11.3",
     "pytest==8.3.5",

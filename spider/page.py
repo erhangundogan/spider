@@ -1,6 +1,7 @@
+import json
 from sqlmodel import Field
 from uuid import uuid4
-from .url_set import URL_Set
+from .url_set import URL_Set, URL_Set_Encoder
 
 class Page():
     id: str | None = Field(default=uuid4().hex, primary_key=True)
@@ -13,12 +14,16 @@ class Page():
         self.utc_date_time: str = ''
         self.meta_tags: dict = {}
         self.texts: list = []
+        self.markdown: str = ''
         self.response_headers: dict = {}
         self.duration: float = 0.0
         self.content_length: int = 0
         self.links_internal: URL_Set = URL_Set()
         self.links_external: URL_Set = URL_Set()
         self.links_skipped: URL_Set = URL_Set()
+
+    def to_json(self):
+        return json.dumps(self.__dict__, cls=URL_Set_Encoder)
 
     def __repr__(self):
         count = 0

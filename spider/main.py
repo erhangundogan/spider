@@ -22,39 +22,15 @@ class CrawlRequest(BaseModel):
     iteration: Optional[int] = Field(default=1)
     nextRoute: Optional[Route] = Field(default=Route.Internal)
 
-@app.get("/")
-async def read_root():
-    return
-
-@app.post("/crawl4ai")
-async def crawl4ai(request: CrawlRequest):
-    if request.url is None:
-        raise HTTPException(status_code=400, detail="URL is required")
-    
+async def process_crawling(request: CrawlRequest, use_crawl4ai):
+    connection = ValkeyConnection() if request.store else None
     iteration = request.iteration
+    last_page = None
     while iteration > 0:
         spider = Spider()
-        page: CrawlRequest = await spider.crawl(base_url=request.url, use_crawl4ai=True)
+        page = await spider.crawl(request.url, use_crawl4ai)
         if page is not None:
-            print(page)
-            iteration -= 1
-            sleep(5)
-        else:
-            print(f"[{datetime.now(timezone.utc)}] Failed to crawl")    
-            raise HTTPException(status_code=500, detail="Failed to crawl")
-
-@app.post("/crawl")
-async def crawl(request: CrawlRequest):
-    if request.url is None:
-        raise HTTPException(status_code=400, detail="URL is required")
-    
-    connection = ValkeyConnection() if request.store is not None and request.store else None
-
-    iteration = request.iteration
-    while iteration > 0:
-        spider = Spider()
-        page: Page = await spider.crawl(base_url=request.url, use_crawl4ai=False)
-        if page is not None:
+            last_page = page
             print(f"[{datetime.now(timezone.utc)}] Successfully crawled the page")
             print(page)
             iteration -= 1
@@ -70,14 +46,40 @@ async def crawl(request: CrawlRequest):
                 else:
                     print(f"[{datetime.now(timezone.utc)}] Failed to connect to the database")    
                     raise HTTPException(status_code=500, detail="Failed to connect to the database")
+
         else:
             print(f"[{datetime.now(timezone.utc)}] Failed to crawl")    
             raise HTTPException(status_code=500, detail="Failed to crawl")
-
-    if connection is not None:
+        
+    if connection is not None and connection.valkey_client is not None:
         connection.valkey_client.close()
 
+    return last_page
+
+@app.get("/")
+async def read_root():
+    return
+
+@app.post("/crawl4ai")
+async def crawl4ai(request: CrawlRequest):
+    if request.url is None:
+        raise HTTPException(status_code=400, detail="URL is required")
+    
+    result = await process_crawling(request, use_crawl4ai=True)
+
     return {
-        "result": "success",
+        "result": result,
+        "message": "Successfully crawled"
+    }
+
+@app.post("/crawl")
+async def crawl(request: CrawlRequest):
+    if request.url is None:
+        raise HTTPException(status_code=400, detail="URL is required")
+    
+    result = await process_crawling(request, use_crawl4ai=False)
+
+    return {
+        "result": result,
         "message": "Successfully crawled"
     }
