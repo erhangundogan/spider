@@ -3,7 +3,7 @@ import json
 class URL_Set_Encoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, URL_Set):
-            return list(obj)
+            return list(obj.url_set)
         return super().default(obj)
 
 class URL_Set:
@@ -20,6 +20,9 @@ class URL_Set:
             self.url_set = lst
         else:
             raise TypeError("Expected a list or set of URLs")
+        
+    def to_list(self):
+        return list(self.url_set)
 
     def add(self, url):
         # params and query strings will generate new urls

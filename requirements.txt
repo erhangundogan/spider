@@ -1,0 +1,12 @@
+beautifulsoup4==4.13.3
+crawl4ai==0.6.3
+fastapi[standard]==0.115.12
+pydantic==2.11.3
+pytest==8.3.5
+pytest-cov==6.0.0
+ruff==0.11.2
+sqlalchemy[asyncio]==2.0.40
+sqlmodel==0.0.24
+urllib3==2.3.0
+valkey==6.1.0
+virtualenv==20.29.3

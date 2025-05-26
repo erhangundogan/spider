@@ -65,7 +65,8 @@ async def crawl4ai(request: CrawlRequest):
     if request.url is None:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    result = await process_crawling(request, use_crawl4ai=True)
+    response = await process_crawling(request, use_crawl4ai=True)
+    result = response.to_json()
 
     return {
         "result": result,
@@ -77,7 +78,8 @@ async def crawl(request: CrawlRequest):
     if request.url is None:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    result = await process_crawling(request, use_crawl4ai=False)
+    response = await process_crawling(request, use_crawl4ai=False)
+    result = response.to_json()
 
     return {
         "result": result,

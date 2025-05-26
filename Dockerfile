@@ -14,7 +14,7 @@ ENV DISPLAY=0 \
 
 WORKDIR /app
 
-COPY pyproject.toml .python-version pytest.ini uv.lock ./
+COPY requirements.txt pyproject.toml .python-version pytest.ini uv.lock ./
 COPY spider/*.py ./
 COPY tests ./tests
 
