@@ -36,9 +36,10 @@ def get_meta_dict(headers):
 class Spider():
     #<scheme>://<netloc>/<path>;<params>?<query>#<fragment>
 
-    def __init__(self, should_save=True):
+    def __init__(self, should_save_html=True, should_save_markdown=True):
         self.page = Page()
-        self.should_save = bool(should_save or self.should_save)
+        self.should_save_html = bool(should_save_html or self.should_save_html)
+        self.should_save_markdown = bool(should_save_markdown or self.should_save_markdown)
         self.parsed_url = ()
         self.current_date_time = datetime.now(timezone.utc)
         self.current_html_content = ''
@@ -47,14 +48,14 @@ class Spider():
         unknown_link = urlparse(url)
         return bool(self.parsed_url.netloc == unknown_link.netloc)
     
-    def save_to_file(self, content, path='/tmp'):
+    def save_to_file(self, content, extension, path='/tmp'):
         first_part = self.parsed_url.netloc.replace('.', '_')
         second_part = self.parsed_url.path.replace("/", "_")
-        file_name = f'{first_part}{second_part}.html'
+        file_name = f'{first_part}{second_part}.{extension}'
         with open(f'{path}/{file_name}', 'w') as file:
             file.write(content)
             print(f"File saved at: {path}/{file_name}")
-        return file_name
+        return f'{path}/{file_name}'
     
     def filter_word(self, word):
         lean_word = word.strip().lower()
@@ -154,7 +155,7 @@ class Spider():
         )
 
         async with AsyncWebCrawler(config=browser_config) as crawler:
-            result = await crawler.arun(url=base_url, config=crawl_config)
+            result = await crawler.arun(url=base_url, config=crawl_config, session_id='FCACA29D-2FF1-4A2F-A9A8-0727A1164D00')
             
             if result.success:
                 self.parsed_url = urlparse(result.url)
@@ -167,10 +168,13 @@ class Spider():
                 self.page.markdown = result.markdown
                 self.page.content_length = result.response_headers.get('Content-Length') or len(result.html)
                 
-                if self.should_save:
-                    # save the content to a file
-                    print(f"[{datetime.now(timezone.utc)}] Saving content to the file.")
-                    self.page.file_name = self.save_to_file(result.html)
+                if self.should_save_html:
+                    print(f"[{datetime.now(timezone.utc)}] Saving HTML to the file.")
+                    self.page.file_name_html = self.save_to_file(result.html, 'html')
+
+                if self.should_save_markdown:
+                    print(f"[{datetime.now(timezone.utc)}] Saving Markdown to the file.")
+                    self.page.file_name_markdown = self.save_to_file(result.markdown, 'md')
 
                 diff = datetime.now(timezone.utc) - self.current_date_time
                 self.page.duration = diff.total_seconds()
@@ -208,10 +212,10 @@ class Spider():
                 result = urlopen(base_url, timeout=10.0, context=context)
                 self.current_html_content = result.read().decode('utf-8', errors='ignore')
 
-                if self.should_save:
+                if self.should_save_html:
                     # save the content to a file
                     print(f"[{datetime.now(timezone.utc)}] Saving content to the file.")
-                    self.page.file_name = self.save_to_file(self.current_html_content)
+                    self.page.file_name_html = self.save_to_file(self.current_html_content, 'html')
 
                 for header in result.info():
                     self.page.response_headers[header] = result.info()[header]

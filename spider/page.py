@@ -10,7 +10,8 @@ class Page():
         self.id: str = uuid4().hex
         self.key: str = ''
         self.base_url: str = ''
-        self.file_name: str = ''
+        self.file_name_html: str = ''
+        self.file_name_markdown: str = ''
         self.utc_date_time: str = ''
         self.meta_tags: dict = {}
         self.texts: list = []
@@ -49,7 +50,9 @@ id: {self.id}
 
 key: {self.key}
 
-file_name: {self.file_name}
+file_name_html: {self.file_name_html}
+
+file_name_markdown: {self.file_name_markdown}
 
 base_url: {self.base_url}
 

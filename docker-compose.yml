@@ -30,33 +30,6 @@ services:
     #     source: ./spider
     #     target: /app
 
-  # postgresql:
-  #   image: 'bitnami/postgresql:latest'
-  #   networks:
-  #     - spider
-  #   ports:
-  #     - 5432:5432
-  #   environment:
-  #     - POSTGRES_DB=airflow
-  #     - POSTGRES_USER=airflow_user
-  #     - POSTGRES_PASSWORD=airflow_password
-
-  # airflow:
-  #   image: bitnami/airflow:latest
-  #   networks:
-  #     - spider
-  #   ports:
-  #     - 8080:8080
-  #   environment:
-  #     - AIRFLOW_FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
-  #     - AIRFLOW_SECRET_KEY=a25mQ1FHTUh3MnFRSk5KMEIyVVU2YmN0VGRyYTVXY08=
-  #     - AIRFLOW_EXECUTOR=CeleryExecutor
-  #     - AIRFLOW_DATABASE_NAME=airflow
-  #     - AIRFLOW_DATABASE_USERNAME=airflow_user
-  #     - AIRFLOW_DATABASE_PASSWORD=airflow_password
-  #     - AIRFLOW_PASSWORD=bitnami123
-  #     - AIRFLOW_USERNAME=user
-  #     - AIRFLOW_EMAIL=user@example.com
   valkey-0:
     <<: *valkey-base
     container_name: valkey-0
