@@ -1,4 +1,5 @@
 import asyncio
+import json
 from time import sleep
 from typing import Optional
 from pydantic import BaseModel, Field
@@ -66,7 +67,7 @@ async def crawl4ai(request: CrawlRequest):
         raise HTTPException(status_code=400, detail="URL is required")
     
     response = await process_crawling(request, use_crawl4ai=True)
-    result = response.to_json()
+    result = json.loads(response.to_json())
 
     return {
         "result": result,
@@ -79,7 +80,7 @@ async def crawl(request: CrawlRequest):
         raise HTTPException(status_code=400, detail="URL is required")
     
     response = await process_crawling(request, use_crawl4ai=False)
-    result = response.to_json()
+    result = json.loads(response.to_json())
 
     return {
         "result": result,
